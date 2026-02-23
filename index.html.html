@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mission Control · Weight Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0e11;
+    --panel: #12151a;
+    --border: #1c2028;
+    --border-bright: #252b36;
+    --text: #e8ecf0;
+    --text-dim: #8a96a8;
+    --text-bright: #f5f7fa;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow Condensed', sans-serif;
+    --green: #3ddc84;
+    --amber: #f5a623;
+    --red: #e05252;
+    --blue: #4a9eff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); min-height: 100vh; padding: 18px;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.055) 2px,rgba(0,0,0,0.055) 4px);
+    pointer-events: none; z-index: 1000;
+  }
+  .container { max-width: 1140px; margin: 0 auto; }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 2px solid var(--amber); padding-bottom: 12px; margin-bottom: 18px;
+    animation: fadeDown .4s ease;
+  }
+  .title { font-size: 26px; font-weight: 900; color: var(--text-bright); letter-spacing: 3px; text-transform: uppercase; }
+  .subtitle { font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 1.5px; margin-top: 3px; }
+  .header-right { display:flex; align-items:center; gap:10px; }
+  .hdate { font-family:var(--mono); font-size:11px; color:var(--text-dim); letter-spacing:1px; text-align:right; }
+
+  /* ── WEEK NAV ── */
+  .week-nav {
+    display: flex; align-items: center; gap: 0;
+    border: 1px solid var(--border-bright); border-radius: 3px; overflow: hidden;
+  }
+  .week-nav-btn {
+    background: var(--panel); border: none; color: var(--text-dim);
+    font-family: var(--mono); font-size: 13px; padding: 6px 12px;
+    cursor: pointer; transition: all .15s; line-height: 1;
+  }
+  .week-nav-btn:hover:not(:disabled) { background: var(--border-bright); color: var(--text-bright); }
+  .week-nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .week-nav-label {
+    background: var(--panel); padding: 6px 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--text-bright);
+    letter-spacing: 1px; border-left: 1px solid var(--border-bright); border-right: 1px solid var(--border-bright);
+    white-space: nowrap; min-width: 110px; text-align: center;
+  }
+  .week-nav-label.is-current { color: var(--amber); }
+
+  /* ── EXPORT BTN ── */
+  .btn-export {
+    font-family: var(--sans); font-size: 12px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 7px 14px; border-radius: 2px; border: 1px solid var(--border-bright);
+    background: transparent; color: var(--text-dim); cursor: pointer; transition: all .15s;
+    white-space: nowrap;
+  }
+  .btn-export:hover { border-color: var(--green); color: var(--green); }
+
+  /* ── LAYOUT ── */
+  .row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .row-top { grid-template-columns: 1.15fr 0.85fr; }
+  .row-bot { grid-template-columns: 1fr 300px; }
+  @media(max-width:820px){ .row-top,.row-bot{ grid-template-columns:1fr; } }
+
+  /* ── PANEL ── */
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
+  .ph { display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid var(--border); background:rgba(255,255,255,.015); }
+  .ph-label { font-family:var(--mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+  .ph-tag { font-family:var(--mono); font-size:9px; letter-spacing:1px; padding:2px 7px; border-radius:2px; text-transform:uppercase; }
+  .tag-p { background:rgba(74,158,255,.12); color:var(--blue); border:1px solid rgba(74,158,255,.3); }
+  .tag-r { background:rgba(61,220,132,.1); color:var(--green); border:1px solid rgba(61,220,132,.3); }
+  .pb { padding:14px; }
+
+  /* ── PLAN CHART ── */
+  #planChart { width:100%; display:block; }
+
+  /* ── PROCESS GOALS ── */
+  .goal-section { margin-bottom:9px; }
+  .goal-section:last-child { margin-bottom:0; }
+  .goal-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }
+  .goal-name { font-family:var(--mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-dim); }
+  .goal-pct { font-family:var(--mono); font-size:13px; font-weight:bold; }
+  .bar-row { display:flex; align-items:center; gap:8px; margin-bottom:3px; }
+  .bar-row:last-child { margin-bottom:0; }
+  .bar-lbl { font-family:var(--mono); font-size:9px; color:var(--text-dim); letter-spacing:1px; width:38px; flex-shrink:0; text-transform:uppercase; }
+  .bar-track { flex:1; height:8px; background:var(--border); border-radius:1px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:1px; transition:width .65s cubic-bezier(.4,0,.2,1); }
+  .bar-val { font-family:var(--mono); font-size:10px; color:var(--text); width:78px; text-align:right; flex-shrink:0; }
+  .divider { border:none; border-top:1px solid var(--border); margin:9px 0; }
+
+  /* ── MIC ── */
+  .mic-area {
+    display:flex; align-items:center; gap:12px; margin-bottom:11px; padding:9px 12px;
+    border:1px solid var(--border-bright); border-radius:2px; background:rgba(255,255,255,.015);
+    transition:border-color .2s;
+  }
+  .mic-area.listening { border-color:var(--red); background:rgba(224,82,82,.06); }
+  .mic-btn {
+    width:40px; height:40px; border-radius:50%; background:var(--border-bright);
+    border:2px solid var(--border-bright); cursor:pointer; display:flex; align-items:center;
+    justify-content:center; flex-shrink:0; transition:all .2s; outline:none;
+    color:var(--text-dim); font-size:17px;
+  }
+  .mic-btn:hover { background:rgba(61,220,132,.15); border-color:var(--green); color:var(--green); }
+  .mic-btn.listening { background:rgba(224,82,82,.2); border-color:var(--red); color:var(--red); animation:pulseMic 1.2s ease-in-out infinite; }
+  @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(224,82,82,.4)} 50%{box-shadow:0 0 0 8px rgba(224,82,82,0)} }
+  .mic-info { flex:1; }
+  .mic-status { font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:1px; }
+  .mic-transcript { font-family:var(--mono); font-size:11px; color:var(--text); min-height:15px; margin-top:2px; font-style:italic; line-height:1.5; }
+
+  /* ── INPUTS ── */
+  .log-hint { font-family:var(--mono); font-size:10px; color:var(--text-dim); margin-bottom:10px; line-height:1.7; background:rgba(255,255,255,.02); border:1px solid var(--border); padding:7px 10px; border-radius:2px; }
+  .log-hint strong { color:var(--amber); }
+  .input-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:7px; }
+  .input-group { display:flex; flex-direction:column; gap:3px; }
+  .input-label { font-family:var(--mono); font-size:9px; color:#a0aabb; letter-spacing:1px; text-transform:uppercase; }
+  input[type="text"],input[type="number"],input[type="time"] {
+    background:var(--bg); border:1px solid var(--border-bright); border-radius:2px;
+    color:#f2f2f2; font-family:var(--mono); font-size:13px;
+    padding:7px 9px; width:100%; outline:none; transition:border-color .2s;
+  }
+  input:focus { border-color:var(--amber); }
+  .btn-row { display:flex; gap:8px; margin-top:5px; }
+  .btn { font-family:var(--sans); font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; padding:9px 14px; border-radius:2px; border:none; cursor:pointer; transition:all .15s; }
+  .btn-primary { background:var(--amber); color:#000; flex:1; }
+  .btn-primary:hover { background:#ffc555; transform:translateY(-1px); }
+  .btn-secondary { background:transparent; color:var(--text-dim); border:1px solid var(--border-bright); }
+  .btn-secondary:hover { border-color:var(--text-dim); color:var(--text); }
+
+  /* ── LOG TABLE ── */
+  .log-table { width:100%; border-collapse:collapse; margin-top:11px; }
+  .log-table th { font-family:var(--mono); font-size:9px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; text-align:left; padding:5px 6px; border-bottom:1px solid var(--border); }
+  .log-table td { font-family:var(--mono); font-size:11px; color:var(--text); padding:5px 6px; border-bottom:1px solid var(--border); }
+  .log-table tr:last-child td { border-bottom:none; }
+  .dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+
+  /* ── SNAPSHOT ── */
+  .snap-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .snap-item { border:1px solid var(--border-bright); border-radius:2px; padding:9px; }
+  .snap-label { font-family:var(--mono); font-size:9px; color:var(--text-dim); letter-spacing:1.5px; text-transform:uppercase; margin-bottom:4px; }
+  .snap-val { font-family:var(--mono); font-size:18px; color:var(--text-bright); font-weight:bold; }
+  .snap-unit { font-size:9px; color:var(--text-dim); margin-left:2px; }
+  .snap-sub { font-family:var(--mono); font-size:10px; margin-top:3px; }
+
+  /* ── TREND CHART ── */
+  #trendChart { width:100%; display:block; margin-top:6px; }
+  .trend-lbl { font-family:var(--mono); font-size:10px; color:var(--text-dim); text-align:center; margin-top:4px; letter-spacing:1px; }
+
+  /* ── VIEWING BANNER ── */
+  .view-banner {
+    display:none; align-items:center; justify-content:center; gap:8px;
+    padding:7px 14px; margin-bottom:14px; border-radius:2px;
+    background:rgba(74,158,255,.08); border:1px solid rgba(74,158,255,.25);
+    font-family:var(--mono); font-size:10px; color:var(--blue); letter-spacing:1px;
+  }
+  .view-banner.show { display:flex; }
+
+  /* ── TOAST ── */
+  .toast { position:fixed; bottom:22px; right:22px; font-family:var(--sans); font-size:13px; font-weight:700; letter-spacing:1.5px; padding:10px 18px; border-radius:2px; text-transform:uppercase; transform:translateY(60px); opacity:0; transition:all .3s; z-index:9999; }
+  .toast.show { transform:translateY(0); opacity:1; }
+
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  .anim1 { animation:fadeUp .4s ease .05s both; }
+  .anim2 { animation:fadeUp .4s ease .12s both; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div>
+      <div class="title">Mission Control</div>
+      <div class="subtitle">12-WEEK WEIGHT LOSS TRACKER · CHIP</div>
+    </div>
+    <div class="header-right">
+      <div class="hdate" id="hDate"></div>
+      <!-- WEEK NAV -->
+      <div class="week-nav">
+        <button class="week-nav-btn" id="wkPrev" onclick="navWeek(-1)" title="Previous week">◀</button>
+        <div class="week-nav-label" id="wkLabel">WEEK 1</div>
+        <button class="week-nav-btn" id="wkNext" onclick="navWeek(1)" title="Next week">▶</button>
+      </div>
+      <button class="btn-export" onclick="exportCSV()">⬇ EXPORT CSV</button>
+    </div>
+  </div>
+
+  <!-- VIEWING PAST WEEK BANNER -->
+  <div class="view-banner" id="viewBanner">
+    📋 VIEWING WEEK <span id="bannerWk"></span> (READ-ONLY) — <span id="bannerDates"></span>
+  </div>
+
+  <!-- ROW 1 -->
+  <div class="row row-top anim1">
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-label">12-Week Weight Loss Plan</span>
+        <span class="ph-tag tag-r">Results</span>
+      </div>
+      <div class="pb" style="padding-bottom:10px;">
+        <svg id="planChart"></svg>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-label">Week <span id="goalWkNum">1</span> · Process Goals</span>
+        <span class="ph-tag tag-p">Process</span>
+      </div>
+      <div class="pb" id="processGoals"></div>
+    </div>
+  </div>
+
+  <!-- ROW 2 -->
+  <div class="row row-bot anim2">
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-label">Daily Log Entry</span>
+        <span class="ph-tag tag-p">Process</span>
+      </div>
+      <div class="pb">
+        <div class="log-hint">
+          <strong>VOICE TIP:</strong> Tap mic and say — <em>"Weight 208.4, first meal 10:15, last meal 5:45, intake 2100, protein 155, fiber 28, expenditure 2650"</em>
+        </div>
+        <div class="mic-area" id="micArea">
+          <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Tap to dictate">🎙</button>
+          <div class="mic-info">
+            <div class="mic-status" id="micStatus">TAP TO DICTATE</div>
+            <div class="mic-transcript" id="micTranscript"></div>
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <span class="input-label">Morning Weight (lbs)</span>
+            <input type="number" id="i-weight" placeholder="209.0" step="0.1">
+          </div>
+          <div class="input-group">
+            <span class="input-label">Caloric Intake (kcal)</span>
+            <input type="number" id="i-intake" placeholder="2100">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <span class="input-label">Caloric Expenditure (kcal)</span>
+            <input type="number" id="i-expenditure" placeholder="2650">
+          </div>
+          <div class="input-group">
+            <span class="input-label">Protein (g)</span>
+            <input type="number" id="i-protein" placeholder="155">
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <span class="input-label">Fiber (g)</span>
+            <input type="number" id="i-fiber" placeholder="28">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="input-group">
+              <span class="input-label">First Meal</span>
+              <input type="time" id="i-firstmeal" value="10:00">
+            </div>
+            <div class="input-group">
+              <span class="input-label">Last Meal</span>
+              <input type="time" id="i-lastmeal" value="18:00">
+            </div>
+          </div>
+        </div>
+        <div class="btn-row" id="logBtnRow">
+          <button class="btn btn-primary" onclick="logEntry()">LOG TODAY</button>
+          <button class="btn btn-secondary" onclick="clearAll()">RESET ALL</button>
+        </div>
+        <div id="logReadOnly" style="display:none; font-family:var(--mono); font-size:10px; color:var(--blue); letter-spacing:1px; margin-top:8px; text-align:center; padding:8px; border:1px solid rgba(74,158,255,.2); border-radius:2px;">
+          NAVIGATE TO CURRENT WEEK TO LOG NEW ENTRIES
+        </div>
+        <table class="log-table">
+          <thead><tr>
+            <th>Day</th><th>Weight</th><th>Deficit</th>
+            <th>Fast</th><th>Protein</th><th>Fiber</th>
+          </tr></thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SNAPSHOT + TREND -->
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div class="panel">
+        <div class="ph"><span class="ph-label">Latest Entry Snapshot</span></div>
+        <div class="pb">
+          <div class="snap-grid">
+            <div class="snap-item"><div class="snap-label">Weight</div><div class="snap-val" id="sn-w">—</div><div class="snap-sub" id="sn-wd"></div></div>
+            <div class="snap-item"><div class="snap-label">Deficit</div><div class="snap-val" id="sn-d">—</div><div class="snap-sub" id="sn-ds"></div></div>
+            <div class="snap-item"><div class="snap-label">Protein</div><div class="snap-val" id="sn-p">—</div><div class="snap-sub" id="sn-ps"></div></div>
+            <div class="snap-item"><div class="snap-label">Fasting</div><div class="snap-val" id="sn-f" style="font-size:13px">—</div><div class="snap-sub" id="sn-fs"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="flex:1;">
+        <div class="ph">
+          <span class="ph-label">Weight Trend · Wk <span id="trendWkNum">1</span></span>
+          <span class="ph-tag tag-r">Results</span>
+        </div>
+        <div class="pb">
+          <svg id="trendChart"></svg>
+          <div class="trend-lbl" id="trendLbl">LOG ENTRIES TO SEE TREND</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIG — Production Settings
+// ═══════════════════════════════════════════════
+const CFG = {
+  startWeight:   209.0,   // Chip's starting weight (Sat/Sun avg of 210+208)
+  goalWeight:    197.0,   // 12-week target (Sat May 15 + Sun May 16 avg)
+  weeks:         12,
+  // Week 1: Mon Feb 23 – Sun Mar 1, 2026
+  week1Start:    new Date('2026-02-23T00:00:00'),
+  dailyDeficit:  500,
+  weeklyDeficit: 3500,
+  dailyProtein:  150,
+  weeklyProtein: 1050,
+  dailyFiber:    30,
+  weeklyFiber:   210,
+  fastStartHr:   10,      // 10:00 AM
+  fastEndHr:     18,      // 6:00 PM
+};
+
+// End-of-week weight goals: after week N, target = startWeight - N*(startWeight-goalWeight)/12
+// That's 209 - N*1 = 209, 208, 207 ... 197
+const weekEndTargets = Array.from({length: CFG.weeks}, (_, i) =>
+  +(CFG.startWeight - (i + 1) * ((CFG.startWeight - CFG.goalWeight) / CFG.weeks)).toFixed(1)
+);
+// [208.0, 207.0, 206.0, 205.0, 204.0, 203.0, 202.0, 201.0, 200.0, 199.0, 198.0, 197.0]
+
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let logs = JSON.parse(localStorage.getItem('mc_logs') || '[]');
+let viewWeek = getCurrentWeekNum(); // which week we're currently viewing
+
+// ═══════════════════════════════════════════════
+//  WEEK HELPERS
+// ═══════════════════════════════════════════════
+function getCurrentWeekNum() {
+  const now = new Date();
+  const diff = now - CFG.week1Start;
+  const week = Math.floor(diff / (7 * 24 * 3600 * 1000)) + 1;
+  return Math.max(1, Math.min(CFG.weeks, week));
+}
+
+function getWeekBounds(weekNum) {
+  const start = new Date(CFG.week1Start);
+  start.setDate(start.getDate() + (weekNum - 1) * 7);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function getWeekLabel(weekNum) {
+  const { start, end } = getWeekBounds(weekNum);
+  const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function getWeekLogs(weekNum) {
+  const { start, end } = getWeekBounds(weekNum);
+  return logs.filter(l => {
+    const d = new Date(l.date);
+    return d >= start && d <= end;
+  }).sort((a,b) => new Date(a.date) - new Date(b.date));
+}
+
+// Day of week 0=Mon..6=Sun
+function dowOf(dateStr) {
+  return (new Date(dateStr).getDay() + 6) % 7;
+}
+
+// End-of-week actual: avg of Sat+Sun weights if both present, else null
+function getWeekActualWeight(weekNum) {
+  const wl = getWeekLogs(weekNum);
+  const sat = wl.find(l => dowOf(l.date) === 5);
+  const sun = wl.find(l => dowOf(l.date) === 6);
+  if (sat && sun) return +((sat.weight + sun.weight) / 2).toFixed(2);
+  if (sun) return sun.weight; // Sun only
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+//  WEEK NAVIGATION
+// ═══════════════════════════════════════════════
+function navWeek(dir) {
+  const cur = getCurrentWeekNum();
+  const newW = viewWeek + dir;
+  if (newW < 1 || newW > cur) return;
+  viewWeek = newW;
+  render();
+}
+
+function updateWeekNav() {
+  const cur = getCurrentWeekNum();
+  const isCurrentWk = viewWeek === cur;
+  document.getElementById('wkPrev').disabled = viewWeek <= 1;
+  document.getElementById('wkNext').disabled = viewWeek >= cur;
+  const lbl = document.getElementById('wkLabel');
+  lbl.textContent = `WEEK ${viewWeek} / ${CFG.weeks}`;
+  lbl.className = 'week-nav-label' + (isCurrentWk ? ' is-current' : '');
+
+  // Banner
+  const banner = document.getElementById('viewBanner');
+  if (!isCurrentWk) {
+    banner.classList.add('show');
+    document.getElementById('bannerWk').textContent = viewWeek;
+    document.getElementById('bannerDates').textContent = getWeekLabel(viewWeek);
+  } else {
+    banner.classList.remove('show');
+  }
+
+  // Log form — show/hide based on whether viewing current week
+  const isCurrentWeek = viewWeek === cur;
+  document.getElementById('logBtnRow').style.display = isCurrentWeek ? 'flex' : 'none';
+  document.getElementById('logReadOnly').style.display = isCurrentWeek ? 'none' : 'block';
+  document.getElementById('micArea').style.opacity = isCurrentWeek ? '1' : '0.4';
+  document.getElementById('micArea').style.pointerEvents = isCurrentWeek ? 'auto' : 'none';
+  document.getElementById('goalWkNum').textContent = viewWeek;
+  document.getElementById('trendWkNum').textContent = viewWeek;
+
+  // Header date line
+  document.getElementById('hDate').innerHTML =
+    `${new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'}).toUpperCase()}<br>` +
+    `<span style="font-size:10px;letter-spacing:1px;color:var(--text-dim)">${getWeekLabel(viewWeek)}</span>`;
+}
+
+// ═══════════════════════════════════════════════
+//  PLAN CHART
+// ═══════════════════════════════════════════════
+function renderPlanChart() {
+  const svg = document.getElementById('planChart');
+  const W = Math.max(svg.parentElement.clientWidth - 28, 300);
+  const H = 158;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+
+  const PL = 34, PR = 14, PT = 12, PB = 20;
+  const cW = W - PL - PR, cH = H - PT - PB;
+  const Y_MIN = 196, Y_MAX = 212;
+
+  const yS = v => PT + cH - ((v - Y_MIN) / (Y_MAX - Y_MIN)) * cH;
+  // 13 x-points: index 0 = start, 1-12 = end of each week
+  const allGoal = [CFG.startWeight, ...weekEndTargets];
+  const xS = i => PL + (i / (allGoal.length - 1)) * cW;
+
+  let html = '';
+
+  // Grid lines + y-axis labels every 2 lbs
+  for (let v = Y_MIN; v <= Y_MAX; v += 2) {
+    const y = yS(v);
+    html += `<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W-PR}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,0.045)" stroke-width="1"/>`;
+    html += `<text x="${PL-4}" y="${(y+3.5).toFixed(1)}" text-anchor="end" fill="rgba(255,255,255,0.28)" font-size="9" font-family="Share Tech Mono">${v}</text>`;
+  }
+
+  // Goal line (white, thin)
+  const gPath = allGoal.map((v,i) => `${i===0?'M':'L'}${xS(i).toFixed(1)},${yS(v).toFixed(1)}`).join(' ');
+  html += `<path d="${gPath}" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="1.5"/>`;
+  allGoal.forEach((v,i) => {
+    html += `<circle cx="${xS(i).toFixed(1)}" cy="${yS(v).toFixed(1)}" r="${i===0?3:2}" fill="rgba(255,255,255,0.65)"/>`;
+  });
+
+  // Actual line: point 0 = start weight, then one per completed week
+  const actualPts = [[0, CFG.startWeight]];
+  for (let w = 1; w <= CFG.weeks; w++) {
+    const aw = getWeekActualWeight(w);
+    if (aw !== null) actualPts.push([w, aw]);
+  }
+  if (actualPts.length > 1) {
+    const aPath = actualPts.map(([i,v],idx) => `${idx===0?'M':'L'}${xS(i).toFixed(1)},${yS(v).toFixed(1)}`).join(' ');
+    html += `<path d="${aPath}" fill="none" stroke="#f5a623" stroke-width="2.5"/>`;
+    actualPts.forEach(([i,v]) => {
+      html += `<circle cx="${xS(i).toFixed(1)}" cy="${yS(v).toFixed(1)}" r="3.5" fill="#f5a623" stroke="#0c0e11" stroke-width="1.5"/>`;
+    });
+  }
+
+  // Viewing week marker (vertical dashed line)
+  const vx = xS(viewWeek).toFixed(1);
+  html += `<line x1="${vx}" y1="${PT}" x2="${vx}" y2="${H-PB}" stroke="rgba(74,158,255,0.35)" stroke-width="1" stroke-dasharray="3,3"/>`;
+
+  // X-axis labels
+  allGoal.forEach((v,i) => {
+    const lbl = i === 0 ? 'S' : `${i}`;
+    html += `<text x="${xS(i).toFixed(1)}" y="${H-4}" text-anchor="middle" fill="rgba(255,255,255,0.2)" font-size="8" font-family="Share Tech Mono">${lbl}</text>`;
+  });
+
+  // Legend
+  const lx = W - PR;
+  html += `
+    <line x1="${lx-108}" y1="13" x2="${lx-93}" y2="13" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>
+    <text x="${lx-89}" y="16.5" fill="rgba(255,255,255,0.4)" font-size="9" font-family="Share Tech Mono">GOAL</text>
+    <line x1="${lx-52}" y1="13" x2="${lx-37}" y2="13" stroke="#f5a623" stroke-width="2.5"/>
+    <text x="${lx-33}" y="16.5" fill="#f5a623" font-size="9" font-family="Share Tech Mono">ACTUAL</text>`;
+
+  svg.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+//  PROCESS GOALS
+// ═══════════════════════════════════════════════
+function renderProcessGoals() {
+  const wl = getWeekLogs(viewWeek);
+  const days = wl.length;
+
+  const goals = [
+    { name:'Deficit', unit:'kcal', actual: wl.reduce((s,l)=>s+(l.expenditure-l.intake),0), daily:CFG.dailyDeficit, weekly:CFG.weeklyDeficit },
+    { name:'Fasting', unit:'days', actual: wl.filter(l=>l.fastingMet).length, daily:1, weekly:7, isFasting:true },
+    { name:'Protein', unit:'g',    actual: wl.reduce((s,l)=>s+l.protein,0),   daily:CFG.dailyProtein, weekly:CFG.weeklyProtein },
+    { name:'Fiber',   unit:'g',    actual: wl.reduce((s,l)=>s+l.fiber,0),     daily:CFG.dailyFiber,   weekly:CFG.weeklyFiber },
+  ];
+
+  document.getElementById('processGoals').innerHTML = goals.map((g, gi) => {
+    const wtdGoal = days * g.daily;
+    let pctLabel = '—', pctColor = 'var(--text-dim)';
+    if (days > 0 && wtdGoal > 0) {
+      const pct = Math.round((g.actual - wtdGoal) / wtdGoal * 100);
+      pctLabel = (pct >= 0 ? '+' : '') + pct + '%';
+      pctColor = pct >= 0 ? 'var(--green)' : (pct >= -20 ? 'var(--amber)' : 'var(--red)');
+    }
+    const actW  = days > 0 ? Math.min(g.actual / g.weekly * 100, 100) : 0;
+    const goalW = days > 0 ? Math.min(wtdGoal / g.weekly * 100, 100) : 0;
+    let actColor = 'var(--amber)';
+    if (days > 0) {
+      if (g.actual >= wtdGoal) actColor = 'var(--green)';
+      else if (g.actual < wtdGoal * 0.75) actColor = 'var(--red)';
+    }
+    const actLbl  = g.isFasting ? `${g.actual}/${days} days` : `${g.actual.toLocaleString()} ${g.unit}`;
+    const goalLbl = g.isFasting ? `${days}/${days} days` : `${wtdGoal.toLocaleString()} ${g.unit} wtd`;
+    return `<div class="goal-section">
+      <div class="goal-hdr">
+        <span class="goal-name">${g.name}</span>
+        <span class="goal-pct" style="color:${pctColor}">${pctLabel}</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-lbl">Actual</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${actW}%;background:${actColor}"></div></div>
+        <span class="bar-val">${actLbl}</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-lbl">Goal</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${goalW}%;background:rgba(255,255,255,0.18)"></div></div>
+        <span class="bar-val">${goalLbl}</span>
+      </div>
+    </div>${gi < goals.length-1 ? '<div class="divider"></div>' : ''}`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  LOG TABLE (shows selected week)
+// ═══════════════════════════════════════════════
+function renderLogTable() {
+  const wl = getWeekLogs(viewWeek);
+  const tbody = document.getElementById('logBody');
+  if (!wl.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-dim);text-align:center;padding:14px;font-size:10px;letter-spacing:1px">NO ENTRIES FOR WEEK ${viewWeek}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = [...wl].reverse().map(l => {
+    const def = l.expenditure - l.intake;
+    const dc = def >= CFG.dailyDeficit ? '#3ddc84' : def >= 0 ? '#f5a623' : '#e05252';
+    const pc = l.protein >= CFG.dailyProtein ? '#3ddc84' : l.protein >= 100 ? '#f5a623' : '#e05252';
+    const fc = l.fiber >= CFG.dailyFiber ? '#3ddc84' : l.fiber >= 20 ? '#f5a623' : '#e05252';
+    const dow = ['MON','TUE','WED','THU','FRI','SAT','SUN'][dowOf(l.date)];
+    return `<tr>
+      <td>${dow}</td>
+      <td>${l.weight}<span style="color:var(--text-dim);font-size:9px"> lb</span></td>
+      <td><span class="dot" style="background:${dc}"></span>${def>0?'+':''}${def}</td>
+      <td>${l.fastingMet ? '✅' : '🔴'}</td>
+      <td><span class="dot" style="background:${pc}"></span>${l.protein}g</td>
+      <td><span class="dot" style="background:${fc}"></span>${l.fiber}g</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  SNAPSHOT (latest entry in viewed week)
+// ═══════════════════════════════════════════════
+function renderSnapshot() {
+  const wl = getWeekLogs(viewWeek);
+  const t = wl[wl.length - 1];
+  if (!t) {
+    ['sn-w','sn-wd','sn-d','sn-ds','sn-p','sn-ps','sn-f','sn-fs'].forEach(id => {
+      document.getElementById(id).innerHTML = '—';
+    });
+    return;
+  }
+  const def = t.expenditure - t.intake;
+  const dc = def >= CFG.dailyDeficit ? 'var(--green)' : def >= 0 ? 'var(--amber)' : 'var(--red)';
+  const pc = t.protein >= CFG.dailyProtein ? 'var(--green)' : 'var(--amber)';
+  const allInOrder = logs.filter(l => new Date(l.date) < new Date(t.date)).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const prev = allInOrder.length ? allInOrder[allInOrder.length-1] : null;
+  const wd = prev ? (t.weight - prev.weight).toFixed(1) : '0.0';
+  const wc = parseFloat(wd) <= 0 ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('sn-w').innerHTML = `${t.weight}<span class="snap-unit">lb</span>`;
+  document.getElementById('sn-wd').innerHTML = `<span style="color:${wc}">${parseFloat(wd)>0?'+':''}${wd} prev</span>`;
+  document.getElementById('sn-d').innerHTML = `${def>0?'+':''}${def}<span class="snap-unit">kcal</span>`;
+  document.getElementById('sn-ds').innerHTML = `<span style="color:${dc}">${def>=CFG.dailyDeficit?'GOAL MET ✓':def>=0?'BELOW TARGET':'SURPLUS'}</span>`;
+  document.getElementById('sn-p').innerHTML = `${t.protein}<span class="snap-unit">g</span>`;
+  document.getElementById('sn-ps').innerHTML = `<span style="color:${pc}">${t.protein>=CFG.dailyProtein?'GOAL MET ✓':'GOAL: '+CFG.dailyProtein+'g'}</span>`;
+  document.getElementById('sn-f').textContent = `${t.firstMeal}–${t.lastMeal}`;
+  const fc2 = t.fastingMet ? 'var(--green)' : 'var(--red)';
+  document.getElementById('sn-fs').innerHTML = `<span style="color:${fc2}">${t.fastingMet?'16:8 MET ✓':'WINDOW MISSED'}</span>`;
+}
+
+// ═══════════════════════════════════════════════
+//  TREND CHART (viewed week)
+// ═══════════════════════════════════════════════
+function renderTrendChart() {
+  const svg = document.getElementById('trendChart');
+  const W = Math.max(svg.parentElement.clientWidth - 28, 200);
+  const H = 90;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  const lbl = document.getElementById('trendLbl');
+  const wl = getWeekLogs(viewWeek);
+
+  if (wl.length < 2) {
+    svg.innerHTML = `<text x="${W/2}" y="48" text-anchor="middle" fill="rgba(255,255,255,0.12)" font-size="9" font-family="Share Tech Mono">LOG MORE ENTRIES TO SEE TREND</text>`;
+    lbl.textContent = '';
+    return;
+  }
+
+  const weights = wl.map(l => l.weight);
+  const tgt = weekEndTargets[viewWeek - 1];
+  const minW = Math.min(...weights, tgt) - 0.5;
+  const maxW = Math.max(...weights, tgt) + 0.5;
+  const n = weights.length;
+  const PL=8,PR=8,PT=8,PB=8;
+  const cW=W-PL-PR, cH=H-PT-PB;
+  const xS = i => PL + (i/(n-1))*cW;
+  const yS = v => PT + cH - ((v-minW)/(maxW-minW))*cH;
+  const pts = weights.map((w,i)=>[xS(i),yS(w)]);
+  const path = pts.map(([x,y],i)=>`${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = path+` L${pts[n-1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
+  const ty = yS(tgt).toFixed(1);
+
+  svg.innerHTML = `<defs>
+    <linearGradient id="aG" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f5a623" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#f5a623" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#aG)"/>
+    <line x1="${PL}" y1="${ty}" x2="${W-PR}" y2="${ty}" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="3,3"/>
+    <text x="${W-PR-2}" y="${parseFloat(ty)-3}" text-anchor="end" fill="rgba(255,255,255,0.25)" font-size="8" font-family="Share Tech Mono">TGT ${tgt}</text>
+    <path d="${path}" fill="none" stroke="#f5a623" stroke-width="2"/>
+    ${pts.map(([x,y])=>`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#f5a623" stroke="#0c0e11" stroke-width="1.5"/>`).join('')}`;
+
+  const chg = (weights[n-1]-weights[0]).toFixed(1);
+  const chgColor = parseFloat(chg) <= 0 ? '#3ddc84' : '#e05252';
+  lbl.innerHTML = `<span style="color:${chgColor}">TREND: ${parseFloat(chg)>0?'+':''}${chg} LBS OVER ${n} DAYS · WK${viewWeek} TARGET: ${tgt} LB</span>`;
+}
+
+// ═══════════════════════════════════════════════
+//  LOG ENTRY
+// ═══════════════════════════════════════════════
+function logEntry() {
+  if (viewWeek !== getCurrentWeekNum()) {
+    showToast('NAVIGATE TO CURRENT WEEK TO LOG', '#e05252');
+    return;
+  }
+  const weight = parseFloat(document.getElementById('i-weight').value);
+  const intake = parseInt(document.getElementById('i-intake').value);
+  const expenditure = parseInt(document.getElementById('i-expenditure').value);
+  const protein = parseInt(document.getElementById('i-protein').value);
+  const fiber = parseInt(document.getElementById('i-fiber').value);
+  const firstMeal = document.getElementById('i-firstmeal').value;
+  const lastMeal = document.getElementById('i-lastmeal').value;
+
+  if (!weight || isNaN(intake) || isNaN(expenditure) || isNaN(protein) || isNaN(fiber)) {
+    showToast('FILL ALL FIELDS', '#e05252');
+    return;
+  }
+
+  const [fh] = firstMeal.split(':').map(Number);
+  const [lh, lm] = lastMeal.split(':').map(Number);
+  const [fhh, fmm] = firstMeal.split(':').map(Number);
+  const fastingMet = (fhh * 60 + fmm) >= CFG.fastStartHr * 60 && (lh * 60 + lm) <= CFG.fastEndHr * 60;
+
+  const now = new Date();
+  logs.push({
+    date: now.toISOString(),
+    dateLabel: now.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),
+    week: getCurrentWeekNum(),
+    weight, intake, expenditure, protein, fiber,
+    firstMeal, lastMeal, fastingMet
+  });
+
+  save();
+  ['i-weight','i-intake','i-expenditure','i-protein','i-fiber'].forEach(id => document.getElementById(id).value='');
+  render();
+  showToast('ENTRY LOGGED ✓', '#3ddc84');
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORT CSV
+// ═══════════════════════════════════════════════
+function exportCSV() {
+  // Daily logs
+  const dailyCols = ['Date','DayOfWeek','Week','Weight_lb','Intake_kcal','Expenditure_kcal',
+    'Deficit_kcal','Protein_g','Fiber_g','FirstMeal','LastMeal','FastingMet'];
+  const dailyRows = logs.map(l => {
+    const def = l.expenditure - l.intake;
+    const dow = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][dowOf(l.date)];
+    return [
+      new Date(l.date).toLocaleDateString('en-US'),
+      dow, l.week, l.weight, l.intake, l.expenditure,
+      def, l.protein, l.fiber, l.firstMeal, l.lastMeal,
+      l.fastingMet ? 'Y' : 'N'
+    ].join(',');
+  });
+
+  // Weekly summaries
+  const weekCols = ['Week','WeekStart','WeekEnd','Goal_Weight_lb','Actual_Weight_lb',
+    'Days_Logged','Total_Deficit_kcal','Deficit_Goal_kcal','Deficit_Pct',
+    'Total_Protein_g','Protein_Goal_g','Protein_Pct',
+    'Total_Fiber_g','Fiber_Goal_g','Fiber_Pct',
+    'Fasting_Days','Fasting_Goal_Days','Fasting_Pct',
+    'Avg_Weight_lb','Weight_vs_Goal'];
+
+  const weekRows = [];
+  for (let w = 1; w <= CFG.weeks; w++) {
+    const wl = getWeekLogs(w);
+    if (!wl.length) continue;
+    const { start, end } = getWeekBounds(w);
+    const fmt = d => d.toLocaleDateString('en-US');
+    const goal = weekEndTargets[w-1];
+    const actual = getWeekActualWeight(w);
+    const days = wl.length;
+    const totDef = wl.reduce((s,l)=>s+(l.expenditure-l.intake),0);
+    const defGoal = days * CFG.dailyDeficit;
+    const totProt = wl.reduce((s,l)=>s+l.protein,0);
+    const protGoal = days * CFG.dailyProtein;
+    const totFib = wl.reduce((s,l)=>s+l.fiber,0);
+    const fibGoal = days * CFG.dailyFiber;
+    const fastDays = wl.filter(l=>l.fastingMet).length;
+    const avgW = (wl.reduce((s,l)=>s+l.weight,0)/days).toFixed(2);
+    const vsGoal = actual !== null ? (actual - goal).toFixed(2) : '';
+    weekRows.push([
+      w, fmt(start), fmt(end), goal, actual ?? '',
+      days, totDef, defGoal, defGoal>0?((totDef-defGoal)/defGoal*100).toFixed(1):'',
+      totProt, protGoal, protGoal>0?((totProt-protGoal)/protGoal*100).toFixed(1):'',
+      totFib, fibGoal, fibGoal>0?((totFib-fibGoal)/fibGoal*100).toFixed(1):'',
+      fastDays, days, days>0?(fastDays/days*100).toFixed(1):'',
+      avgW, vsGoal
+    ].join(','));
+  }
+
+  const csv = [
+    '=== MISSION CONTROL · DAILY LOG ===',
+    dailyCols.join(','),
+    ...dailyRows,
+    '',
+    '=== WEEKLY SUMMARY ===',
+    weekCols.join(','),
+    ...weekRows
+  ].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mission-control-export-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV EXPORTED ✓', '#3ddc84');
+}
+
+// ═══════════════════════════════════════════════
+//  VOICE / MIC
+// ═══════════════════════════════════════════════
+let recognition = null, isListening = false;
+
+function toggleMic() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showToast('SPEECH API NOT AVAILABLE IN THIS BROWSER', '#e05252');
+    return;
+  }
+  if (isListening) { recognition && recognition.stop(); return; }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('micArea').classList.add('listening');
+    document.getElementById('micStatus').textContent = 'LISTENING — TAP TO STOP';
+    document.getElementById('micTranscript').textContent = '...';
+  };
+  recognition.onresult = e => {
+    let interim='', final='';
+    for (let i=e.resultIndex;i<e.results.length;i++) {
+      const t=e.results[i][0].transcript;
+      e.results[i].isFinal ? (final+=t) : (interim+=t);
+    }
+    document.getElementById('micTranscript').textContent = final||interim;
+    if (final) parseTranscript(final);
+  };
+  recognition.onerror = e => { showToast('MIC ERROR: '+e.error.toUpperCase(),'#e05252'); stopMic(); };
+  recognition.onend = stopMic;
+  recognition.start();
+}
+
+function stopMic() {
+  isListening = false;
+  document.getElementById('micBtn').classList.remove('listening');
+  document.getElementById('micArea').classList.remove('listening');
+  document.getElementById('micStatus').textContent = 'TAP TO DICTATE';
+}
+
+function parseTranscript(text) {
+  const t = text.toLowerCase();
+  const num = pat => { const m = t.match(pat); return m ? m[1].replace(/,/g,'') : null; };
+  const weight = num(/weight\s+([\d.]+)/);
+  const intake = num(/intake\s+([\d,]+)/);
+  const expend = num(/expenditure\s+([\d,]+)/);
+  const protein = num(/protein\s+([\d]+)/);
+  const fiber = num(/fiber\s+([\d]+)/);
+
+  const timeRx = s => {
+    const m = text.match(new RegExp(s + '\\s*([\\d]{1,2}:[\\d]{2}|[\\d]{1,2}\\s*(?:am|pm))', 'i'));
+    if (!m) return null;
+    let ts = m[1].trim();
+    const isPM = /pm/i.test(ts), isAM = /am/i.test(ts);
+    ts = ts.replace(/am|pm/gi,'').trim();
+    if (!ts.includes(':')) ts += ':00';
+    let [h,mn] = ts.split(':').map(Number);
+    if (isPM && h<12) h+=12;
+    if (isAM && h===12) h=0;
+    return `${String(h).padStart(2,'0')}:${String(mn||0).padStart(2,'0')}`;
+  };
+  const fm = timeRx('first meal');
+  const lm = timeRx('last meal');
+
+  if (weight) document.getElementById('i-weight').value = parseFloat(weight);
+  if (intake) document.getElementById('i-intake').value = parseInt(intake);
+  if (expend) document.getElementById('i-expenditure').value = parseInt(expend);
+  if (protein) document.getElementById('i-protein').value = parseInt(protein);
+  if (fiber) document.getElementById('i-fiber').value = parseInt(fiber);
+  if (fm) document.getElementById('i-firstmeal').value = fm;
+  if (lm) document.getElementById('i-lastmeal').value = lm;
+}
+
+// ═══════════════════════════════════════════════
+//  CLEAR / SAVE / RENDER
+// ═══════════════════════════════════════════════
+function clearAll() {
+  if (!confirm('⚠️ This will permanently delete ALL logged data across all 12 weeks. Are you sure?')) return;
+  logs = [];
+  localStorage.removeItem('mc_logs');
+  viewWeek = getCurrentWeekNum();
+  render();
+  showToast('ALL DATA CLEARED', '#f5a623');
+}
+
+function save() { localStorage.setItem('mc_logs', JSON.stringify(logs)); }
+
+function render() {
+  updateWeekNav();
+  renderPlanChart();
+  renderProcessGoals();
+  renderLogTable();
+  renderSnapshot();
+  renderTrendChart();
+}
+
+function showToast(msg, color='#3ddc84') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.style.color = color === '#e05252' ? '#fff' : '#000';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════
+window.addEventListener('load', () => {
+  viewWeek = getCurrentWeekNum();
+  render();
+  window.addEventListener('resize', () => { renderPlanChart(); renderTrendChart(); });
+});
+</script>
+</body>
+</html>
